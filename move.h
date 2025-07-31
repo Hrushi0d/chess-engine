@@ -26,11 +26,19 @@ typedef struct {
 Bitboard MakeMove(Move m, Bitboard board);
 Bitboard UndoMove(Move m, Bitboard board);
 
-#define IS_BLACK(piece) ((piece) & 0xF0)
+#define IS_BLACK(piece) ((piece) & 0x10)
 #define IS_WHITE(piece) (!IS_BLACK(piece))
-#define IS_PROMOTION(m) ((m).flags & MOVE_FLAG_PROMOTION)
-#define IS_CAPTURE(m) ((m).flags & MOVE_FLAG_CAPTURE)
-#define IS_ENPASSANT(m) ((m).flags & MOVE_FLAG_ENPASSANT)
-#define IS_CASTLE(m) ((m).flags & MOVE_FLAG_CASTLE)
+#define PIECE_INDEX(p) index_from_piece(p)
+#define SQUARE_FROM(m) (m.from)
+#define SQUARE_TO(m)   (m.to)
+#define IS_PROMO(m)    ((m.flags) & MOVE_FLAG_PROMOTION)
+#define IS_CAPTURE(m)  ((m.flags) & MOVE_FLAG_CAPTURE)
+#define IS_EP(m)       ((m.flags) & MOVE_FLAG_ENPASSANT)
+#define IS_CASTLE(m)   ((m.flags) & MOVE_FLAG_CASTLE)
+
+#define CASTLE_WK_TO 6
+#define CASTLE_WQ_TO 2
+#define CASTLE_BK_TO 62
+#define CASTLE_BQ_TO 58
 
 #endif //MOVE_H
