@@ -211,36 +211,53 @@ void print_board(const Bitboard board) {
     printf("Fullmove number: %u\n", board.fullmove_number);
 }
 
-bool is_king_check(Bitboard board) {
-    uint64_t opponent_all_occupancy;
-    uint64_t opponent_pieces[6]; // 0: pawn, 1: knight, ..., 5: king
-    uint64_t king_occupancy;
+// bool is_king_check(Bitboard board) {
+//     uint64_t opponent_all_occupancy;
+//     uint64_t opponent_pieces[6]; // 0: pawn, 1: knight, ..., 5: king
+//     uint64_t king_occupancy;
+//
+//     if (board.to_move == WHITE) {
+//         opponent_all_occupancy = board.black_occupancy;
+//         opponent_pieces[0] = board.pieces[INDEX_BPAWN];
+//         opponent_pieces[1] = board.pieces[INDEX_BKNIGHT];
+//         opponent_pieces[2] = board.pieces[INDEX_BBISHOP];
+//         opponent_pieces[3] = board.pieces[INDEX_BROOK];
+//         opponent_pieces[4] = board.pieces[INDEX_BQUEEN];
+//         opponent_pieces[5] = board.pieces[INDEX_BKING];
+//         king_occupancy = board.pieces[INDEX_WKING];
+//     } else {
+//         opponent_all_occupancy = board.white_occupancy;
+//         opponent_pieces[0] = board.pieces[INDEX_WPAWN];
+//         opponent_pieces[1] = board.pieces[INDEX_WKNIGHT];
+//         opponent_pieces[2] = board.pieces[INDEX_WBISHOP];
+//         opponent_pieces[3] = board.pieces[INDEX_WROOK];
+//         opponent_pieces[4] = board.pieces[INDEX_WQUEEN];
+//         opponent_pieces[5] = board.pieces[INDEX_WKING];
+//         king_occupancy = board.pieces[INDEX_BKING];
+//     }
+//
+//     // Get square of our king
+//     int king_square = count_trailing_zeros(king_occupancy);
+//     return false;
+// }
 
-    if (board.to_move == WHITE) {
-        opponent_all_occupancy = board.black_occupancy;
-        opponent_pieces[0] = board.pieces[INDEX_BPAWN];
-        opponent_pieces[1] = board.pieces[INDEX_BKNIGHT];
-        opponent_pieces[2] = board.pieces[INDEX_BBISHOP];
-        opponent_pieces[3] = board.pieces[INDEX_BROOK];
-        opponent_pieces[4] = board.pieces[INDEX_BQUEEN];
-        opponent_pieces[5] = board.pieces[INDEX_BKING];
-        king_occupancy = board.pieces[INDEX_WKING];
-    } else {
-        opponent_all_occupancy = board.white_occupancy;
-        opponent_pieces[0] = board.pieces[INDEX_WPAWN];
-        opponent_pieces[1] = board.pieces[INDEX_WKNIGHT];
-        opponent_pieces[2] = board.pieces[INDEX_WBISHOP];
-        opponent_pieces[3] = board.pieces[INDEX_WROOK];
-        opponent_pieces[4] = board.pieces[INDEX_WQUEEN];
-        opponent_pieces[5] = board.pieces[INDEX_WKING];
-        king_occupancy = board.pieces[INDEX_BKING];
+static inline uint32_t count_trailing_zeros(uint64_t x) {
+#if defined(_MSC_VER)
+    unsigned long index;
+    _BitScanForward64(&index, x);
+    return index;
+#elif defined(__GNUC__) || defined(__clang__)
+    return count_trailing_zeros(x);
+#else
+    // fallback (not efficient)
+    uint32_t count = 0;
+    while ((x & 1) == 0 && count < 64) {
+        x >>= 1;
+        count++;
     }
-
-    // Get square of our king
-    int king_square = __builtin_ctzll(king_occupancy);
-    return false;
+    return count;
+#endif
 }
-
 
 
 uint64_t generate_white_pawn_attack_mask(Bitboard board) {

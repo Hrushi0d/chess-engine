@@ -109,11 +109,11 @@ static const uint64_t RANK_MASKS[8] = {
     MASK_RANK_8,
 };
 
-#ifndef
+#ifndef WHITE
 #define WHITE false
 #endif
 
-#ifndef
+#ifndef BLACK
 #define BLACK true
 #endif
 
