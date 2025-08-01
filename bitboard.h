@@ -5,6 +5,9 @@
 #ifndef BITBOARD_H
 #define BITBOARD_H
 
+#include <stdint.h>  // for uint64_t, uint8_t
+#include <stdbool.h>
+
 typedef struct {
     uint64_t pieces[12];        // 0-5: White (P,N,B,R,Q,K), 6-11: Black (p,n,b,r,q,k)
     uint64_t white_occupancy;
@@ -22,7 +25,7 @@ typedef struct {
 // === Function declarations ===
 int piece_from_char(char c);
 int index_from_piece(uint8_t piece);
-uint64_t square_bit(int row, int col);
-Bitboard initBitboard(const char* FEN);
+Bitboard init_Bitboard(const char* FEN);
+void print_board(Bitboard board);
 
 #endif //BITBOARD_H

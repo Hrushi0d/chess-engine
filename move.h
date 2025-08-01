@@ -36,9 +36,9 @@ Bitboard UndoMove(Move m, Bitboard board);
 #define IS_EP(m)       ((m.flags) & MOVE_FLAG_ENPASSANT)
 #define IS_CASTLE(m)   ((m.flags) & MOVE_FLAG_CASTLE)
 
-#define CASTLE_WK_TO 6
-#define CASTLE_WQ_TO 2
-#define CASTLE_BK_TO 62
-#define CASTLE_BQ_TO 58
+#define CASTLE_WK_TO 6   // g1
+#define CASTLE_WQ_TO 2   // c1
+#define CASTLE_BK_TO 62  // g8
+#define CASTLE_BQ_TO 58  // c8
 
 #endif //MOVE_H

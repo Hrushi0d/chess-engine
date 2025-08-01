@@ -64,54 +64,90 @@ int index_from_piece(uint8_t piece) {
 
 
 
-Bitboard initBitboard(const char* FEN) {
+Bitboard init_Bitboard(const char* FEN) {
     Bitboard b = {0};
     uint8_t row = 0, col = 0;
+    const char* original_FEN = FEN; // Keep track of original for debugging
 
+    // printf("DEBUG: Starting FEN parsing: '%s'\n", FEN);
+
+    // Parse piece placement
     while (*FEN && row < 8) {
-        char c = *FEN++;
+        char c = *FEN;
+        // printf("DEBUG: Processing char '%c' at row=%d, col=%d, remaining FEN: '%s'\n", c, row, col, FEN);
+        FEN++;
 
         if (c == '/') {
             row++;
             col = 0;
+            // printf("DEBUG: New row, now row=%d, col=%d\n", row, col);
         } else if (isdigit(c)) {
-            col += c - '0';
+            int skip = c - '0';
+            col += skip;
+            // printf("DEBUG: Skipping %d squares, col now = %d\n", skip, col);
         } else {
             if (col < 8) {
                 uint8_t piece = piece_from_char(c);
                 if (piece != PIECE_EMPTY) {
                     uint8_t index = index_from_piece(piece);
-					if (index != INDEX_EMPTY) {
-						uint64_t bit = square_bit(row, col);
-                    	b.pieces[index] |= bit;  // Mask to get black
-                	    if (piece & 0xF0)
-                    	    b.black_occupancy |= bit;
-                    	else // or white
-                        	b.white_occupancy |= bit;
-                    	b.all_occupancy |= bit;
-					}else{
-						fprintf(stderr, "Invalid piece '%c' at row %d, col %d\n", c, row, col);
-						exit(EXIT_FAILURE);
-					}
-
-                }else{ //raise Error invalid Symbol
-				fprintf(stderr, "Invalid piece '%c' at row %d, col %d\n", c, row, col);
-				exit(EXIT_FAILURE);
-				}
+                    if (index != INDEX_EMPTY) {
+                        uint64_t bit = square_bit(row, col);
+                        // printf("DEBUG: Placing piece '%c' (piece=%d, index=%d) at row=%d, col=%d, bit=0x%llx\n" c, piece, index, row, col, bit);
+                        b.pieces[index] |= bit;
+                        if (piece & 0x10) // Check bit 4 (0x10) for black pieces
+                            b.black_occupancy |= bit;
+                        else
+                            b.white_occupancy |= bit;
+                        b.all_occupancy |= bit;
+                    } else {
+                        fprintf(stderr, "Invalid piece index for '%c' at row %d, col %d\n", c, row, col);
+                        exit(EXIT_FAILURE);
+                    }
+                } else {
+                    fprintf(stderr, "Invalid piece '%c' at row %d, col %d\n", c, row, col);
+                    exit(EXIT_FAILURE);
+                }
                 col++;
+                // printf("DEBUG: After placing piece, col=%d\n", col);
             }
+        }
+        // Break out of loop when we've finished the last row
+        if (row == 7 && col == 8) {
+            break;
         }
     }
 
-	if (*FEN == ' ') FEN++;
-    if (*FEN == 'w') b.to_move = 0;
-    else if (*FEN == 'b') b.to_move = 1;
-    else {
-        fprintf(stderr, "Invalid side to move in FEN.\n");
-        exit(EXIT_FAILURE);
+    // printf("DEBUG: Finished piece placement. Current FEN position: '%s'\n", FEN);
+    // printf("DEBUG: Next char is '%c' (ASCII: %d)\n", *FEN ? *FEN : '?', *FEN);
+
+    // Skip whitespace before side to move
+    while (*FEN && *FEN == ' ') {
+        FEN++;
     }
 
-	if (*++FEN != ' ') FEN++;  // skip side char and space
+    // printf("DEBUG: After skipping whitespace, next char is '%c' (ASCII: %d)\n", *FEN ? *FEN : '?', *FEN);
+
+    // Parse side to move
+    if (*FEN == 'w') {
+        b.to_move = 0;
+        // printf("DEBUG: Side to move: White\n");
+    } else if (*FEN == 'b') {
+        b.to_move = 1;
+        // printf("DEBUG: Side to move: Black\n");
+    } else {
+        fprintf(stderr, "Invalid side to move in FEN: '%c' (ASCII: %d)\n", *FEN, (int)*FEN);
+        fprintf(stderr, "Original FEN: '%s'\n", original_FEN);
+        fprintf(stderr, "Current position in FEN: '%s'\n", FEN);
+        exit(EXIT_FAILURE);
+    }
+    FEN++; // move past 'w' or 'b'
+
+    // Skip whitespace before castling rights
+    while (*FEN && *FEN == ' ') {
+        FEN++;
+    }
+
+    // Parse castling rights
     b.castling_rights = 0;
     if (*FEN == '-') {
         FEN++;
@@ -130,7 +166,47 @@ Bitboard initBitboard(const char* FEN) {
         }
     }
 
+    // For now, just set defaults for the remaining fields
+    b.en_passant_target = 0;
+    b.en_passant_file = 0xFF;
+    b.en_passant_rank = 0xFF;
+    b.halfmove_clock = 0;
+    b.fullmove_number = 1;
+
     return b;
 }
 
+static const char piece_symbols[12] = {
+    'P', 'N', 'B', 'R', 'Q', 'K',  // White
+    'p', 'n', 'b', 'r', 'q', 'k'   // Black
+};
 
+void print_board(const Bitboard board) {
+    for (int rank = 7; rank >= 0; rank--) {
+        printf("%d ", rank + 1);
+        for (int file = 0; file < 8; file++) {
+            int sq = rank * 8 + file;
+            uint64_t mask = 1ULL << sq;
+            char piece = '.';
+
+            for (int i = 0; i < 12; i++) {
+                if (board.pieces[i] & mask) {
+                    piece = piece_symbols[i];
+                    break;
+                }
+            }
+
+            printf("%c ", piece);
+        }
+        printf("\n");
+    }
+
+    printf("  a b c d e f g h\n");
+
+    // Metadata
+    printf("To move: %s\n", board.to_move ? "Black" : "White");
+    printf("Castling rights: 0x%X\n", board.castling_rights);
+    printf("En passant target: 0x%llx\n", board.en_passant_target);
+    printf("Halfmove clock: %u\n", board.halfmove_clock);
+    printf("Fullmove number: %u\n", board.fullmove_number);
+}

@@ -47,9 +47,12 @@ MoveList generate_moves(Bitboard board, int piece_type) {
 }
 
 struct TreeNode {
+	Move move;
     Bitboard state;
     struct TreeNode *parent;
     struct TreeNode **children;
+	uint16_t score;
+	uint8_t depth;
 }TreeNode;
 
 uint16_t evaluate_position( struct TreeNode *Node) {

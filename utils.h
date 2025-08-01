@@ -8,5 +8,7 @@
 #include <stdint.h>
 
 uint64_t square_bit(int row, int col);
+uint8_t rank_from_bit(uint64_t sq);
+uint8_t file_from_bit(uint64_t sq);
 
 #endif //UTILS_H

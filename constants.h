@@ -48,8 +48,10 @@
 
 #define CASTLE_WHITE_K 0x1
 #define CASTLE_WHITE_Q 0x2
+#define CASTLE_WHITE   0x3
 #define CASTLE_BLACK_K 0x4
 #define CASTLE_BLACK_Q 0x8
+#define CASTLE_BLACK   0xC
 
 // === enpasant ===
 
@@ -57,8 +59,8 @@
 #define MAX_MOVES              256
 #define MOVE_FLAG_CAPTURE      0x01
 #define MOVE_FLAG_PROMOTION    0x02
-#define MOVE_FLAG_ENPASANT     0x04
-#define MOVE_FLAG_CASTLING     0x08
+#define MOVE_FLAG_ENPASSANT    0x04
+#define MOVE_FLAG_CASTLE       0x08
 
 #endif // BITBOARD_H
 

@@ -13,3 +13,10 @@
 uint64_t square_bit(int row, int col) {
     return 1ULL << ((7 - row) * 8 + col);
 }
+
+uint8_t rank_from_bit(uint64_t sq) {
+    return sq & 7;
+}
+uint8_t file_from_bit(uint64_t sq) {
+    return sq >> 3;
+}

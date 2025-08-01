@@ -28,168 +28,230 @@ typedef struct {
     uint16_t prev_halfmove_clock;
 } Move;
 
-static inline void xor_occupancy(Bitboard *mb, uint64_t sq, uint8_t piece) {
-    mb->all_occupancy ^= sq;
-    if (IS_BLACK(piece)) mb->black_occupancy ^= sq;
-    else mb->white_occupancy ^= sq;
+// Optimized occupancy update functions
+static inline void update_occupancy_remove(Bitboard *b, uint64_t sq, uint8_t piece) {
+    b->all_occupancy ^= sq;
+    if (IS_BLACK(piece)) {
+        b->black_occupancy ^= sq;
+    } else {
+        b->white_occupancy ^= sq;
+    }
 }
 
-static inline void or_occupancy(Bitboard *mb, uint64_t sq, uint8_t piece) {
-    mb->all_occupancy |= sq;
-    if (IS_BLACK(piece)) mb->black_occupancy |= sq;
-    else mb->white_occupancy |= sq;
+static inline void update_occupancy_add(Bitboard *b, uint64_t sq, uint8_t piece) {
+    b->all_occupancy |= sq;
+    if (IS_BLACK(piece)) {
+        b->black_occupancy |= sq;
+    } else {
+        b->white_occupancy |= sq;
+    }
 }
 
-static inline void clear_en_passant(Bitboard *mb) {
-    mb->en_passant_target = 0;
-    mb->en_passant_file = 0xFF;
-    mb->en_passant_rank = 0xFF;
-}
+// Precomputed castling masks for faster updates
+static const uint8_t CASTLE_KING_LOST[2] = {
+    ~(CASTLE_WHITE_K | CASTLE_WHITE_Q),  // White king moves
+    ~(CASTLE_BLACK_K | CASTLE_BLACK_Q)   // Black king moves
+};
 
-static inline void restore_en_passant(Bitboard *mb, Move m) {
-    mb->en_passant_target = m.prev_en_passant_target;
-    mb->en_passant_rank = m.prev_en_passant_rank;
-    mb->en_passant_file = m.prev_en_passant_file;
-}
+// Initialize castling lookup table at compile time with proper defaults
+static uint8_t CASTLE_ROOK_LOST[64] = {
+    [0 ... 63] = 0xFF,           // Default: no castling rights lost
+    [0] = ~CASTLE_WHITE_Q,       // a1 rook
+    [7] = ~CASTLE_WHITE_K,       // h1 rook
+    [56] = ~CASTLE_BLACK_Q,      // a8 rook
+    [63] = ~CASTLE_BLACK_K,      // h8 rook
+};
 
-static inline void restore_castling(Bitboard *mb, Move m) {
-    mb->castling_rights = m.prev_castling_rights;
-}
-
-static inline void restore_halfmove_clock(Bitboard *mb, Move m) {
-    mb->halfmove_clock = m.prev_halfmove_clock;
+// Alternative: Initialize at program startup using constructor attribute
+// This runs once before main(), eliminating any runtime overhead
+__attribute__((constructor))
+static void init_castle_lookup() {
+    // Ensure all squares default to no castling rights lost
+    for (int i = 0; i < 64; i++) {
+        if (i != 0 && i != 7 && i != 56 && i != 63) {
+            CASTLE_ROOK_LOST[i] = 0xFF;
+        }
+    }
 }
 
 Bitboard MakeMove(Move m, Bitboard b) {
     Bitboard mb = b;
 
-    xor_occupancy(&mb, m.from, m.piece);
+    // Remove piece from source square
+    update_occupancy_remove(&mb, m.from, m.piece);
     mb.pieces[PIECE_INDEX(m.piece)] ^= m.from;
 
+    // Handle promotion vs normal move
     if (IS_PROMO(m)) {
-        or_occupancy(&mb, m.to, m.promotion);
+        // Place promoted piece on target square
+        update_occupancy_add(&mb, m.to, m.promotion);
         mb.pieces[PIECE_INDEX(m.promotion)] |= m.to;
     } else {
-        or_occupancy(&mb, m.to, m.piece);
+        // Place same piece on target square
+        update_occupancy_add(&mb, m.to, m.piece);
         mb.pieces[PIECE_INDEX(m.piece)] |= m.to;
     }
 
+    // Handle captures (except en passant)
     if (IS_CAPTURE(m) && !IS_EP(m)) {
-        xor_occupancy(&mb, m.to, m.captured);
+        // Captured piece is already removed from occupancy by the move above
+        // Just need to remove from piece bitboard
         mb.pieces[PIECE_INDEX(m.captured)] ^= m.to;
     }
 
+    // Handle en passant capture
     if (IS_EP(m)) {
-        int rank = __builtin_ctzll(m.to) / 8;
-        int file = __builtin_ctzll(m.to) % 8;
-        int cap_rank = IS_BLACK(m.piece) ? rank + 1 : rank - 1;
-        uint64_t ep_sq = 1ULL << (cap_rank * 8 + file);
-        xor_occupancy(&mb, ep_sq, m.captured);
-        mb.pieces[PIECE_INDEX(m.captured)] ^= ep_sq;
+        // Calculate captured pawn position
+        uint8_t ep_rank = IS_BLACK(m.piece) ? (m.to_square >> 3) + 1 : (m.to_square >> 3) - 1;
+        uint8_t ep_file = m.to_square & 7;
+        uint8_t ep_square = ep_rank * 8 + ep_file;
+        uint64_t ep_bit = 1ULL << ep_square;
+
+        update_occupancy_remove(&mb, ep_bit, m.captured);
+        mb.pieces[PIECE_INDEX(m.captured)] ^= ep_bit;
     }
 
+    // Handle castling
     if (IS_CASTLE(m)) {
-        uint64_t r_from, r_to;
-        uint8_t rook = (IS_BLACK(m.piece) ? PIECE_BROOK : PIECE_WROOK);
+        uint64_t rook_from, rook_to;
+        uint8_t rook_piece = IS_BLACK(m.piece) ? PIECE_BROOK : PIECE_WROOK;
+
+        // Use lookup table for rook positions
         switch (m.to_square) {
-            case CASTLE_WK_TO: r_from = 1ULL << 7; r_to = 1ULL << 5; break;
-            case CASTLE_WQ_TO: r_from = 1ULL << 0; r_to = 1ULL << 3; break;
-            case CASTLE_BK_TO: r_from = 1ULL << 63; r_to = 1ULL << 61; break;
-            case CASTLE_BQ_TO: r_from = 1ULL << 56; r_to = 1ULL << 59; break;
+            case CASTLE_WK_TO: rook_from = 1ULL << 7; rook_to = 1ULL << 5; break;  // h1->f1
+            case CASTLE_WQ_TO: rook_from = 1ULL << 0; rook_to = 1ULL << 3; break;  // a1->d1
+            case CASTLE_BK_TO: rook_from = 1ULL << 63; rook_to = 1ULL << 61; break; // h8->f8
+            case CASTLE_BQ_TO: rook_from = 1ULL << 56; rook_to = 1ULL << 59; break; // a8->d8
             default:
-                fprintf(stderr, "Invalid castling square: %u\n", m.to_square);
+                fprintf(stderr, "Invalid castling target square: %u\n", m.to_square);
                 exit(EXIT_FAILURE);
         }
-        xor_occupancy(&mb, r_from, rook);
-        or_occupancy(&mb, r_to, rook);
-        mb.pieces[PIECE_INDEX(rook)] ^= r_from;
-        mb.pieces[PIECE_INDEX(rook)] |= r_to;
+
+        // Move the rook
+        update_occupancy_remove(&mb, rook_from, rook_piece);
+        update_occupancy_add(&mb, rook_to, rook_piece);
+        mb.pieces[PIECE_INDEX(rook_piece)] ^= (rook_from | rook_to);
     }
 
-    clear_en_passant(&mb);
+    // Clear en passant (always reset)
+    mb.en_passant_target = 0;
+    mb.en_passant_file = 0xFF;
+    mb.en_passant_rank = 0xFF;
+
+    // Set new en passant if pawn double move
     if ((m.piece & 0x0F) == PIECE_PAWN) {
-        int rf = __builtin_ctzll(m.from) / 8, rt = __builtin_ctzll(m.to) / 8;
-        if (abs(rt - rf) == 2) {
-            int file = __builtin_ctzll(m.to) % 8;
-            int ep_rank = (rf + rt) / 2;
+        uint8_t from_rank = m.from_square >> 3;
+        uint8_t to_rank = m.to_square >> 3;
+
+        if (abs((int)to_rank - (int)from_rank) == 2) {
+            uint8_t file = m.to_square & 7;
+            uint8_t ep_rank = (from_rank + to_rank) >> 1; // Average rank
             mb.en_passant_target = 1ULL << (ep_rank * 8 + file);
             mb.en_passant_file = file;
             mb.en_passant_rank = ep_rank;
         }
     }
 
-    if (m.piece == PIECE_WKING) mb.castling_rights &= ~(CASTLE_WHITE_K | CASTLE_WHITE_Q);
-    else if (m.piece == PIECE_BKING) mb.castling_rights &= ~(CASTLE_BLACK_K | CASTLE_BLACK_Q);
-    else if (m.piece == PIECE_WROOK) {
-        if (m.from_square == 0) mb.castling_rights &= ~CASTLE_WHITE_Q;
-        if (m.from_square == 7) mb.castling_rights &= ~CASTLE_WHITE_K;
-    } else if (m.piece == PIECE_BROOK) {
-        if (m.from_square == 56) mb.castling_rights &= ~CASTLE_BLACK_Q;
-        if (m.from_square == 63) mb.castling_rights &= ~CASTLE_BLACK_K;
-    }
-    if (IS_CAPTURE(m)) {
-        if (m.to_square == 0) mb.castling_rights &= ~CASTLE_WHITE_Q;
-        if (m.to_square == 7) mb.castling_rights &= ~CASTLE_WHITE_K;
-        if (m.to_square == 56) mb.castling_rights &= ~CASTLE_BLACK_Q;
-        if (m.to_square == 63) mb.castling_rights &= ~CASTLE_BLACK_K;
+    // Update castling rights efficiently
+    if ((m.piece & 0x0F) == PIECE_KING) {
+        // King moved - lose all castling rights for this color
+        mb.castling_rights &= CASTLE_KING_LOST[IS_BLACK(m.piece) ? 1 : 0];
+    } else if ((m.piece & 0x0F) == PIECE_ROOK) {
+        // Rook moved - potentially lose castling rights
+        mb.castling_rights &= CASTLE_ROOK_LOST[m.from_square];
     }
 
+    // Handle captures affecting castling rights
+    if (IS_CAPTURE(m)) {
+        mb.castling_rights &= CASTLE_ROOK_LOST[m.to_square];
+    }
+
+    // Update halfmove clock and move counters
     mb.halfmove_clock = ((m.piece & 0x0F) == PIECE_PAWN || IS_CAPTURE(m)) ? 0 : mb.halfmove_clock + 1;
-    if (mb.to_move == 1) mb.fullmove_number++;
+
+    // Increment fullmove number after black's move
+    if (mb.to_move == 1) {
+        mb.fullmove_number++;
+    }
+
+    // Switch sides
     mb.to_move ^= 1;
+
     return mb;
 }
 
 Bitboard UndoMove(Move m, Bitboard board) {
     Bitboard mb = board;
-    mb.to_move ^= 1;
-    if (mb.to_move == 1) mb.fullmove_number--;
 
+    // Switch sides back
+    mb.to_move ^= 1;
+
+    // Decrement fullmove number if it was black's move
+    if (mb.to_move == 1) {
+        mb.fullmove_number--;
+    }
+
+    // Undo castling first (if applicable)
     if (IS_CASTLE(m)) {
-        uint64_t rf, rt;
-        uint8_t rook = (IS_BLACK(m.piece) ? PIECE_BROOK : PIECE_WROOK);
+        uint64_t rook_from, rook_to; // Note: these are swapped for undo
+        uint8_t rook_piece = IS_BLACK(m.piece) ? PIECE_BROOK : PIECE_WROOK;
+
         switch (m.to_square) {
-            case CASTLE_WK_TO: rf = 1ULL << 5; rt = 1ULL << 7; break;
-            case CASTLE_WQ_TO: rf = 1ULL << 3; rt = 1ULL << 0; break;
-            case CASTLE_BK_TO: rf = 1ULL << 61; rt = 1ULL << 63; break;
-            case CASTLE_BQ_TO: rf = 1ULL << 59; rt = 1ULL << 56; break;
+            case CASTLE_WK_TO: rook_from = 1ULL << 5; rook_to = 1ULL << 7; break;   // f1->h1
+            case CASTLE_WQ_TO: rook_from = 1ULL << 3; rook_to = 1ULL << 0; break;   // d1->a1
+            case CASTLE_BK_TO: rook_from = 1ULL << 61; rook_to = 1ULL << 63; break; // f8->h8
+            case CASTLE_BQ_TO: rook_from = 1ULL << 59; rook_to = 1ULL << 56; break; // d8->a8
             default:
-                fprintf(stderr, "Invalid castling square: %u\n", m.to_square);
+                fprintf(stderr, "Invalid castling target square: %u\n", m.to_square);
                 exit(EXIT_FAILURE);
         }
-        xor_occupancy(&mb, rf, rook);
-        or_occupancy(&mb, rt, rook);
-        mb.pieces[PIECE_INDEX(rook)] ^= rf;
-        mb.pieces[PIECE_INDEX(rook)] |= rt;
+
+        // Move rook back
+        update_occupancy_remove(&mb, rook_from, rook_piece);
+        update_occupancy_add(&mb, rook_to, rook_piece);
+        mb.pieces[PIECE_INDEX(rook_piece)] ^= (rook_from | rook_to);
     }
 
-    xor_occupancy(&mb, m.to, m.piece);
-    or_occupancy(&mb, m.from, m.piece);
-
+    // Move piece back from target to source
     if (IS_PROMO(m)) {
+        // Remove promoted piece from target square
+        update_occupancy_remove(&mb, m.to, m.promotion);
         mb.pieces[PIECE_INDEX(m.promotion)] ^= m.to;
+
+        // Restore original pawn to source square
+        update_occupancy_add(&mb, m.from, m.piece);
         mb.pieces[PIECE_INDEX(m.piece)] |= m.from;
     } else {
-        mb.pieces[PIECE_INDEX(m.piece)] ^= m.to;
-        mb.pieces[PIECE_INDEX(m.piece)] |= m.from;
+        // Move piece back normally
+        update_occupancy_remove(&mb, m.to, m.piece);
+        update_occupancy_add(&mb, m.from, m.piece);
+        mb.pieces[PIECE_INDEX(m.piece)] ^= (m.from | m.to);
     }
 
-    if (IS_CAPTURE(m) && !IS_EP(m)) {
-        mb.pieces[PIECE_INDEX(m.captured)] |= m.to;
-        or_occupancy(&mb, m.to, m.captured);
-    }
-    if (IS_EP(m)) {
-        int r = __builtin_ctzll(m.to) / 8;
-        int f = __builtin_ctzll(m.to) % 8;
-        int cap_r = IS_BLACK(m.piece) ? r + 1 : r - 1;
-        uint64_t ep_sq = 1ULL << (cap_r * 8 + f);
-        mb.pieces[PIECE_INDEX(m.captured)] |= ep_sq;
-        or_occupancy(&mb, ep_sq, m.captured);
+    // Restore captured piece (if any)
+    if (IS_CAPTURE(m)) {
+        if (IS_EP(m)) {
+            // Restore en passant captured pawn
+            uint8_t ep_rank = IS_BLACK(m.piece) ? (m.to_square >> 3) + 1 : (m.to_square >> 3) - 1;
+            uint8_t ep_file = m.to_square & 7;
+            uint8_t ep_square = ep_rank * 8 + ep_file;
+            uint64_t ep_bit = 1ULL << ep_square;
+
+            update_occupancy_add(&mb, ep_bit, m.captured);
+            mb.pieces[PIECE_INDEX(m.captured)] |= ep_bit;
+        } else {
+            // Restore normally captured piece
+            update_occupancy_add(&mb, m.to, m.captured);
+            mb.pieces[PIECE_INDEX(m.captured)] |= m.to;
+        }
     }
 
-    restore_en_passant(&mb, m);
-    restore_castling(&mb, m);
-    restore_halfmove_clock(&mb, m);
+    // Restore previous board state
+    mb.en_passant_target = m.prev_en_passant_target;
+    mb.en_passant_rank = m.prev_en_passant_rank;
+    mb.en_passant_file = m.prev_en_passant_file;
+    mb.castling_rights = m.prev_castling_rights;
+    mb.halfmove_clock = m.prev_halfmove_clock;
 
     return mb;
 }
