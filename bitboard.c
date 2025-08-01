@@ -210,3 +210,94 @@ void print_board(const Bitboard board) {
     printf("Halfmove clock: %u\n", board.halfmove_clock);
     printf("Fullmove number: %u\n", board.fullmove_number);
 }
+
+bool is_king_check(Bitboard board) {
+    uint64_t opponent_all_occupancy;
+    uint64_t opponent_pieces[6]; // 0: pawn, 1: knight, ..., 5: king
+    uint64_t king_occupancy;
+
+    if (board.to_move == WHITE) {
+        opponent_all_occupancy = board.black_occupancy;
+        opponent_pieces[0] = board.pieces[INDEX_BPAWN];
+        opponent_pieces[1] = board.pieces[INDEX_BKNIGHT];
+        opponent_pieces[2] = board.pieces[INDEX_BBISHOP];
+        opponent_pieces[3] = board.pieces[INDEX_BROOK];
+        opponent_pieces[4] = board.pieces[INDEX_BQUEEN];
+        opponent_pieces[5] = board.pieces[INDEX_BKING];
+        king_occupancy = board.pieces[INDEX_WKING];
+    } else {
+        opponent_all_occupancy = board.white_occupancy;
+        opponent_pieces[0] = board.pieces[INDEX_WPAWN];
+        opponent_pieces[1] = board.pieces[INDEX_WKNIGHT];
+        opponent_pieces[2] = board.pieces[INDEX_WBISHOP];
+        opponent_pieces[3] = board.pieces[INDEX_WROOK];
+        opponent_pieces[4] = board.pieces[INDEX_WQUEEN];
+        opponent_pieces[5] = board.pieces[INDEX_WKING];
+        king_occupancy = board.pieces[INDEX_BKING];
+    }
+
+    // Get square of our king
+    int king_square = __builtin_ctzll(king_occupancy);
+    return false;
+}
+
+
+
+uint64_t generate_white_pawn_attack_mask(Bitboard board) {
+    uint64_t pawns = board.pieces[INDEX_WPAWN];
+
+    const uint64_t not_file_A = ~MASK_FILE_A;
+    const uint64_t not_file_H = ~MASK_FILE_H;
+
+    const uint64_t not_rank_8 = ~MASK_RANK_8;
+
+    pawns &= not_rank_8;
+
+    uint64_t left_attacks  = (pawns & not_file_A) << 7;
+    uint64_t right_attacks = (pawns & not_file_H) << 9;
+
+    return left_attacks | right_attacks;
+}
+
+uint64_t generate_black_pawn_attack_mask(Bitboard board) {
+    uint64_t pawns = board.pieces[INDEX_BPAWN];
+
+    const uint64_t not_file_A = ~MASK_FILE_A;
+    const uint64_t not_file_H = ~MASK_FILE_H;
+    const uint64_t not_rank_1 = ~MASK_RANK_1;
+
+    pawns &= not_rank_1;
+
+    uint64_t left_attacks  = (pawns & not_file_A) >> 7;
+    uint64_t right_attacks = (pawns & not_file_H) >> 9;
+
+    return left_attacks | right_attacks;
+}
+
+static inline uint64_t king_attacks(uint64_t king) {
+    uint64_t attacks = 0ULL;
+
+    // One square in all 8 directions
+    attacks |= (king << 8);                    // North
+    attacks |= (king >> 8);                    // South
+
+    uint64_t not_file_a = ~MASK_FILE_A;
+    uint64_t not_file_h = ~MASK_FILE_H;
+
+    attacks |= (king & not_file_h) << 1;       // East
+    attacks |= (king & not_file_a) >> 1;       // West
+    attacks |= (king & not_file_h) << 9;       // North-East
+    attacks |= (king & not_file_a) << 7;       // North-West
+    attacks |= (king & not_file_h) >> 7;       // South-East
+    attacks |= (king & not_file_a) >> 9;       // South-West
+
+    return attacks;
+}
+
+uint64_t generate_white_king_attack_mask(Bitboard board) {
+    return king_attacks(board.pieces[INDEX_WKING]);
+}
+
+uint64_t generate_black_king_attack_mask(Bitboard board) {
+    return king_attacks(board.pieces[INDEX_BKING]);
+}

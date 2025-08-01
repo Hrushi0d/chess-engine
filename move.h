@@ -41,4 +41,18 @@ Bitboard UndoMove(Move m, Bitboard board);
 #define CASTLE_BK_TO 62  // g8
 #define CASTLE_BQ_TO 58  // c8
 
+#define MOVING        (b->to_move)
+#define OPPONENT      (b->to_move ^ 1)
+#define IS_WHITE_TURN (!b->to_move)
+#define IS_BLACK_TURN  (b->to_move)
+
+#ifndef
+#define WHITE false
+#endif
+
+#ifndef
+#define BLACK true
+#endif
+
+
 #endif //MOVE_H
