@@ -17,7 +17,7 @@ A simple, performant chess engine written in C using bitboards and (optionally) 
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/chess-engine.git
+git clone https://github.com/Hrushi0d/chess-engine.git
 cd chess-engine
 ````
 
