@@ -1,4 +1,3 @@
 .idea
 *.exe
 build
-rook_magic_number_generator.cpp
