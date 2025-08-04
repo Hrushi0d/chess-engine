@@ -392,7 +392,7 @@
 #define MAGIC_BISHOP_SHIFT_63 6
 #include <stdint.h>
 
-static constexpr uint64_t MAGIC_ROOK_NUMS[64] = {
+static const uint64_t MAGIC_ROOK_NUMS[64] = {
     MAGIC_ROOK_NUM_0,
     MAGIC_ROOK_NUM_1,
     MAGIC_ROOK_NUM_2,
@@ -459,7 +459,7 @@ static constexpr uint64_t MAGIC_ROOK_NUMS[64] = {
     MAGIC_ROOK_NUM_63,
 };
 
-static constexpr uint64_t MAGIC_BISHOP_NUMS[64] = {
+static const uint64_t MAGIC_BISHOP_NUMS[64] = {
     MAGIC_BISHOP_NUM_0,
     MAGIC_BISHOP_NUM_1,
     MAGIC_BISHOP_NUM_2,
@@ -526,7 +526,7 @@ static constexpr uint64_t MAGIC_BISHOP_NUMS[64] = {
     MAGIC_BISHOP_NUM_63,
 };
 
-static constexpr uint8_t MAGIC_ROOK_SHIFTS[64] = {
+static const uint8_t MAGIC_ROOK_SHIFTS[64] = {
     MAGIC_ROOK_SHIFT_0,
     MAGIC_ROOK_SHIFT_1,
     MAGIC_ROOK_SHIFT_2,
@@ -593,7 +593,7 @@ static constexpr uint8_t MAGIC_ROOK_SHIFTS[64] = {
     MAGIC_ROOK_SHIFT_63,
 };
 
-static constexpr uint8_t MAGIC_BISHOP_SHIFTS[64] = {
+static const uint8_t MAGIC_BISHOP_SHIFTS[64] = {
     MAGIC_BISHOP_SHIFT_0,
     MAGIC_BISHOP_SHIFT_1,
     MAGIC_BISHOP_SHIFT_2,

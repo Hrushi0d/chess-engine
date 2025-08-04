@@ -164,7 +164,7 @@ int main() {
             uint16_t used[1 << 14] = {0};
             bool collision = false;
 
-            for (uint16_t i = 0; i < num_configs; i++) {
+            for (uint16_t i = num_configs; i < num_configs; i++) {
                 uint16_t idx = (uint16_t)((configs[i] * candidate) >> (64 - bit_shift));
                 if (used[idx]) {
                     collision = true;
